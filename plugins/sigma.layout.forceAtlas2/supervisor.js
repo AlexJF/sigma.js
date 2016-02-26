@@ -24,7 +24,7 @@
    * ------------------
    */
   function Supervisor(sigInst, options) {
-    var _this = this,
+    var self = this,
         workerFn = sigInst.getForceAtlas2Worker &&
           sigInst.getForceAtlas2Worker();
 
@@ -46,6 +46,11 @@
     // State
     this.started = false;
     this.running = false;
+
+    // Cooling
+    this.cooling = false;
+    this.cpi = -1;
+    this.cei = null;
 
     // Web worker or classic DOM events?
     if (this.shouldUseWorker) {
@@ -71,19 +76,45 @@
     this.listener = function(e) {
 
       // Retrieving data
-      _this.nodesByteArray = new Float32Array(e.data.nodes);
+      self.nodesByteArray = new Float32Array(e.data.nodes);
 
       // If ForceAtlas2 is running, we act accordingly
-      if (_this.running) {
+      if (self.running) {
 
         // Applying layout
-        _this.applyLayoutChanges();
+        self.applyLayoutChanges();
 
-        // Send data back to worker and loop
-        _this.sendByteArrayToWorker();
+        // Counting iterations
+        if (self.cooling) {
+
+          // One more
+          self.cpi++;
+
+          // Ought to stop?
+          if (self.cpi === self.cei) {
+
+            // Tearing
+            self.cooling = false;
+            self.cpi = -1;
+            self.cei = null;
+
+            self.afterCooldown();
+            delete self.afterCooldown;
+            self.stop();
+            return;
+          }
+
+          // Send data back to worker and loop
+          self.sendByteArrayToWorker('cooldown', {nbIterations: self.cei});
+        }
+        else {
+
+          // Send data back to worker and loop
+          self.sendByteArrayToWorker('loop');
+        }
 
         // Rendering graph
-        _this.sigInst.refresh();
+        self.sigInst.refresh();
       }
     };
 
@@ -160,7 +191,6 @@
     }
   };
 
-  // TODO: make a better send function
   Supervisor.prototype.applyLayoutChanges = function() {
     var nodes = this.graph.nodes(),
         j = 0,
@@ -174,11 +204,14 @@
     }
   };
 
-  Supervisor.prototype.sendByteArrayToWorker = function(action) {
+  Supervisor.prototype.sendByteArrayToWorker = function(action, params) {
     var content = {
       action: action || 'loop',
       nodes: this.nodesByteArray.buffer
     };
+
+    if (params)
+      content.params = params;
 
     var buffers = [this.nodesByteArray.buffer];
 
@@ -253,6 +286,19 @@
     this.running = false;
   };
 
+  Supervisor.prototype.cooldown = function(nbIterations, callback) {
+    if (typeof nbIterations === 'function') {
+      callback = nbIterations;
+      nbIterations = null;
+    }
+
+    this.cei = nbIterations || 30;
+    this.cooling = true;
+    this.afterCooldown = typeof callback === 'function' ?
+      callback :
+      Function.prototype;
+  };
+
   Supervisor.prototype.killWorker = function() {
     if (this.worker) {
       this.worker.terminate();
@@ -266,7 +312,7 @@
   Supervisor.prototype.configure = function(config) {
 
     // Setting configuration
-    this.config = config;
+    this.config = sigma.utils.extend(config, this.config);
 
     if (!this.started)
       return;
@@ -283,11 +329,16 @@
    * Interface
    * ----------
    */
-  sigma.prototype.startForceAtlas2 = function(config) {
+  function ForceAtlas2Interface(sigInst) {
+    this.supervisor = null;
+    this.sigInst = sigInst;
+  }
+
+  ForceAtlas2Interface.prototype.start = function(config) {
 
     // Create supervisor if undefined
     if (!this.supervisor)
-      this.supervisor = new Supervisor(this, config);
+      this.supervisor = new Supervisor(this.sigInst, config);
 
     // Configuration provided?
     if (config)
@@ -299,7 +350,7 @@
     return this;
   };
 
-  sigma.prototype.stopForceAtlas2 = function() {
+  ForceAtlas2Interface.prototype.stop = function() {
     if (!this.supervisor)
       return this;
 
@@ -309,7 +360,17 @@
     return this;
   };
 
-  sigma.prototype.killForceAtlas2 = function() {
+  ForceAtlas2Interface.prototype.cooldown = function(nbIterations, callback) {
+    var self = this;
+
+    if (!this.supervisor)
+      return this;
+
+    this.supervisor.cooldown(nbIterations, callback);
+    return this;
+  };
+
+  ForceAtlas2Interface.prototype.kill = function() {
     if (!this.supervisor)
       return this;
 
@@ -325,7 +386,7 @@
     return this;
   };
 
-  sigma.prototype.configForceAtlas2 = function(config) {
+  ForceAtlas2Interface.prototype.config = function(config) {
     if (!this.supervisor)
       this.supervisor = new Supervisor(this, config);
 
@@ -334,7 +395,21 @@
     return this;
   };
 
-  sigma.prototype.isForceAtlas2Running = function(config) {
+  ForceAtlas2Interface.prototype.running = function() {
     return !!this.supervisor && this.supervisor.running;
   };
+
+  ForceAtlas2Interface.prototype.cooling = function() {
+    return !!this.supervisor && this.supervisor.cooling;
+  };
+
+  /**
+   * Registering constructor extension
+   * ----------------------------------
+   */
+  sigma.register(function() {
+
+    // Main object
+    this.forceAtlas2 = new ForceAtlas2Interface(this);
+  });
 }).call(this);

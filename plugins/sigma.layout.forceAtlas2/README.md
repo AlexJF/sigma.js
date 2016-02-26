@@ -13,44 +13,70 @@ For optimization purposes, the algorithm's computations are delegated to a web w
 
 ## Methods
 
-**sigma.startForceAtlas2**
+**sigma.forceAtlas2.start**
 
 Starts or unpauses the layout. It is possible to pass a configuration if this is the first time you start the layout.
 
 ```js
-sigmaInstance.startForceAtlas2(config);
+sigmaInstance.forceAtlas2.start(config);
 ```
 
-**sigma.stopForceAtlas2**
+**sigma.forceAtlas2.stop**
 
 Pauses the layout.
 
 ```js
-sigmaInstance.stopForceAtlas2();
+sigmaInstance.forceAtlas2.stop();
 ```
 
-**sigma.configForceAtlas2**
+**sigma.forceAtlas2.cooldown**
+
+Gently stops the layout in 30 iterations by default or in a number provided to the function.
+
+```js
+// 30 iterations of cooldown
+sigmaInstance.forceAtlas2.cooldown();
+
+// 20 iterations of cooldown
+sigmaInstance.forceAtlas2.cooldown(20);
+
+// Passing a callback
+sigmaInstance.forceAtlas2.cooldown(20, callback);
+
+// Passing only a callback to keep the default 30
+sigmaInstance.forceAtlas2.cooldown(callback);
+```
+
+**sigma.forceAtlas2.config**
 
 Changes the layout's configuration.
 
 ```js
-sigmaInstance.configForceAtlas2(config);
+sigmaInstance.forceAtlas2.config(config);
 ```
 
-**sigma.killForceAtlas2**
+**sigma.forceAtlas2.kill**
 
 Completely stops the layout and terminates the assiociated worker. You can still restart it later, but a new worker will have to initialize.
 
 ```js
-sigmaInstance.killForceAtlas2();
+sigmaInstance.forceAtlas2.kill();
 ```
 
-**sigma.isForceAtlas2Running**
+**sigma.forceAtlas2.running**
 
 Returns whether ForceAtlas2 is running.
 
 ```js
-sigmaInstance.isForceAtlas2Running();
+sigmaInstance.forceAtlas2.running();
+```
+
+**sigma.forceAtlas2.cooling**
+
+Returns whether ForceAtlas2 is in a cooling state.
+
+```js
+sigmaInstance.forceAtlas2.cooling();
 ```
 
 ## Configuration
